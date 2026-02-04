@@ -7,7 +7,7 @@ An OpenClaw skill for autonomous FLock API Platform setup. Enables AI agents to 
 ### Automatic (via OpenClaw)
 
 ```bash
-npx clawhub@latest install flock-in
+npx clawhub@latest install flock-in-v1
 ```
 
 ### Manual Setup
