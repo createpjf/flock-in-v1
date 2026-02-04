@@ -4,22 +4,26 @@
  * This module provides the agent-level integration between
  * the flock-in skill and OpenClaw's agent runtime.
  *
+ * Design principle: Minimize user interaction.
+ * Only show wallet address when funding is needed.
+ * All payment processing is silent.
+ *
  * @module flock-in/agent-service
  */
 
 import {
   generateWallet,
-  checkBalance,
-  waitForFunding,
   getCredentials,
   saveCredentials,
   switchModel,
-  X402Client,
   MODELS,
   type FlockCredentials,
-  type BalanceResult,
   type ModelId,
 } from '../src/index.js';
+
+import { X402Client } from '../src/x402-client.js';
+import { checkUSDCBalance, type USDCBalanceResult } from '../src/usdc-balance.js';
+import { recordPayment, getTotalSpent } from '../src/payment-tracker.js';
 
 /**
  * Agent context provided by OpenClaw runtime
@@ -41,8 +45,17 @@ export interface AgentContext {
 export interface SetupResult {
   success: boolean;
   wallet?: string;
-  authMethod?: 'x402' | 'apiKey';
-  model?: string;
+  balance?: string;
+  needsFunding?: boolean;
+  error?: string;
+}
+
+/**
+ * Chat result
+ */
+export interface ChatResult {
+  success: boolean;
+  content?: string;
   error?: string;
 }
 
@@ -51,141 +64,143 @@ export interface SetupResult {
  *
  * Handles the full lifecycle of FLock API setup and usage within
  * the OpenClaw agent runtime.
+ *
+ * Key design: Agent-friendly, minimal user interaction.
+ * - Automatic wallet generation
+ * - Silent payment processing
+ * - Only prompt when funding is needed
  */
 export class FlockAgentService {
   private ctx: AgentContext;
-  private client: X402Client | null = null;
+  private x402Client: X402Client | null = null;
 
   constructor(ctx: AgentContext) {
     this.ctx = ctx;
   }
 
   /**
-   * Execute full setup flow
+   * Silent initialization - called automatically before any operation.
+   * Only shows output when user action is needed (funding).
    *
-   * 1. Check existing configuration
-   * 2. Generate wallet
-   * 3. Wait for funding
-   * 4. Configure credentials
-   * 5. Verify setup
+   * @returns true if ready to use, false if funding needed
    */
-  async setup(): Promise<SetupResult> {
-    try {
-      // Step 1: Check existing config
-      const existing = await getCredentials();
-      if (existing?.apiKey || existing?.privateKey) {
-        await this.ctx.send(
-          'Existing FLock configuration found. Use `/flock` to switch models.'
-        );
-        return {
-          success: true,
-          wallet: existing.wallet,
-          authMethod: existing.apiKey ? 'apiKey' : 'x402',
-          model: existing.model,
-        };
+  private async ensureReady(): Promise<boolean> {
+    const creds = await getCredentials();
+
+    // Already configured with funds
+    if (creds?.privateKey) {
+      const balance = await checkUSDCBalance(creds.wallet!);
+      if (balance.hasMinimum) {
+        return true; // Silent pass - user sees nothing
       }
+      // Insufficient funds - show minimal prompt
+      await this.showFundingPrompt(creds.wallet!, balance.balance);
+      return false;
+    }
 
-      // Step 2: Generate wallet
-      await this.ctx.send('Generating new wallet for FLock...');
-      const wallet = await generateWallet();
+    // First time - generate wallet silently, then show funding prompt
+    const wallet = await generateWallet();
+    await saveCredentials({
+      wallet: wallet.address,
+      privateKey: wallet.privateKey,
+      model: 'deepseek-v3.2',
+    });
+    await this.showFundingPrompt(wallet.address, '0.00');
+    return false;
+  }
 
-      await this.ctx.send(
-        `Wallet created!\n\nAddress: \`${wallet.address}\`\n\n` +
-          `Please send ~$0.50 of ETH or USDC to this address.`
-      );
+  /**
+   * Show minimal funding prompt.
+   * This is the ONLY setup-related output users see.
+   */
+  private async showFundingPrompt(
+    address: string,
+    balance: string
+  ): Promise<void> {
+    await this.ctx.send(
+      `💳 FLock 支付钱包\n\n` +
+        `地址: ${address}\n` +
+        `余额: $${balance} USDC\n` +
+        `网络: Base\n\n` +
+        `请发送 USDC 后重试`
+    );
+  }
 
-      // Step 3: Wait for funding
-      await this.ctx.send('Waiting for funds...');
+  /**
+   * Chat with automatic silent payment.
+   * Users only see the response content, not payment details.
+   *
+   * @param message - User message
+   * @returns Response content or null if funding needed
+   */
+  async chat(message: string): Promise<string | null> {
+    // Silent check/initialization
+    if (!(await this.ensureReady())) {
+      return null; // Funding prompt already shown
+    }
 
-      const funded = await waitForFunding(wallet.address, {
-        minBalance: '0.001',
-        maxWait: 600000, // 10 minutes
-        onCheck: async (result) => {
-          if (!result.hasFunds) {
-            // Silent check, don't spam user
-          }
-        },
+    const creds = await getCredentials();
+
+    // Initialize client if needed
+    if (!this.x402Client) {
+      this.x402Client = new X402Client({
+        privateKey: creds!.privateKey!,
+      });
+    }
+
+    try {
+      const model = creds!.model || 'deepseek-v3.2';
+
+      // Make request - payment handled internally
+      const result = await this.x402Client.chat({
+        model,
+        messages: [{ role: 'user', content: message }],
       });
 
-      const fundedChain = Object.entries(funded.balances).find(
-        ([, b]) => b.hasFunds
-      );
-      await this.ctx.send(
-        `Funds detected on ${fundedChain?.[0] || 'unknown'}: ${fundedChain?.[1]?.balance || '?'} ETH`
-      );
-
-      // Step 4: Determine auth method
-      await this.ctx.send(
-        'Choose authentication method:\n' +
-          '1. **x402** - Pay per request with USDC (autonomous)\n' +
-          '2. **API Key** - Traditional API key from platform.flock.io'
-      );
-
-      const choice = await this.ctx.prompt('Enter 1 or 2:');
-      const useX402 = choice.trim() === '1';
-
-      if (useX402) {
-        // x402 setup
-        await saveCredentials({
-          wallet: wallet.address,
-          privateKey: wallet.privateKey,
-          model: 'deepseek-v3.2',
+      // Silent payment recording (no output)
+      if (result.payment) {
+        await recordPayment({
+          transactionHash: result.payment.transactionHash,
+          timestamp: result.payment.timestamp,
+          amount: result.payment.amount,
+          model,
+          network: result.payment.network,
+          tokens: {
+            input: result.usage?.prompt_tokens || 0,
+            output: result.usage?.completion_tokens || 0,
+          },
         });
-
-        await this.ctx.send(
-          'x402 payment configured! You can now use FLock models with automatic micropayments.'
-        );
-
-        return {
-          success: true,
-          wallet: wallet.address,
-          authMethod: 'x402',
-          model: 'deepseek-v3.2',
-        };
-      } else {
-        // API Key setup
-        await this.ctx.send(
-          'Please:\n' +
-            '1. Go to https://platform.flock.io\n' +
-            `2. Connect with wallet: \`${wallet.address}\`\n` +
-            '3. Create an API key\n' +
-            '4. Paste the API key below'
-        );
-
-        const apiKey = await this.ctx.prompt('Enter API key:');
-
-        await saveCredentials({
-          apiKey: apiKey.trim(),
-          wallet: wallet.address,
-          privateKey: wallet.privateKey,
-          model: 'deepseek-v3.2',
-        });
-
-        await this.ctx.send('API key saved! FLock is now configured.');
-
-        return {
-          success: true,
-          wallet: wallet.address,
-          authMethod: 'apiKey',
-          model: 'deepseek-v3.2',
-        };
       }
+
+      // Return only content - no payment info shown
+      return result.choices[0]?.message?.content || null;
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      await this.ctx.send(`Setup failed: ${message}`);
-      return { success: false, error: message };
+      // Check if it's a balance issue
+      if (
+        error instanceof Error &&
+        (error.message.includes('insufficient') ||
+          error.message.includes('balance'))
+      ) {
+        const balance = await checkUSDCBalance(creds!.wallet!);
+        await this.showFundingPrompt(creds!.wallet!, balance.balance);
+        return null;
+      }
+      // For other errors, show brief message
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      await this.ctx.send(`Error: ${msg}`);
+      return null;
     }
   }
 
   /**
-   * Switch to a different model
+   * Switch to a different model (silent unless showing picker)
    */
   async switchToModel(modelId?: string): Promise<void> {
     if (!modelId) {
-      // Show model picker
+      // Show model picker only when no model specified
       let message = 'Available models:\n\n';
       for (const [id, model] of Object.entries(MODELS)) {
-        message += `• **${id}** - ${model.description} ($${model.pricing.input}/$${model.pricing.output}/1M tokens)\n`;
+        message += `• **${id}** - ${model.description}\n`;
       }
       await this.ctx.send(message);
 
@@ -199,72 +214,49 @@ export class FlockAgentService {
     }
 
     await switchModel(modelId);
-    const model = MODELS[modelId as ModelId];
-    await this.ctx.send(`Switched to ${model.name}`);
+    // Silent confirmation - don't spam user
   }
 
   /**
-   * Check wallet balance
+   * Get wallet info (only when user explicitly requests)
    */
-  async checkWalletBalance(): Promise<BalanceResult | null> {
+  async getWalletInfo(): Promise<{
+    address: string;
+    balance: string;
+    totalSpent: string;
+  } | null> {
     const creds = await getCredentials();
     if (!creds?.wallet) {
-      await this.ctx.send('No wallet configured. Run `/flock-setup` first.');
       return null;
     }
 
-    const result = await checkBalance(creds.wallet);
+    const balance = await checkUSDCBalance(creds.wallet);
+    const totalSpent = await getTotalSpent();
 
-    let message = `Balance for \`${creds.wallet}\`:\n\n`;
-    for (const [chain, balance] of Object.entries(result.balances)) {
-      message += `• ${chain}: ${balance.balance} ETH${balance.error ? ` (error: ${balance.error})` : ''}\n`;
-    }
-    message += `\nTotal: ${result.totalBalance} ETH`;
-
-    await this.ctx.send(message);
-    return result;
+    return {
+      address: creds.wallet,
+      balance: balance.balance,
+      totalSpent,
+    };
   }
 
   /**
-   * Get or create x402 client
+   * Show wallet details (only when user explicitly asks)
    */
-  async getClient(): Promise<X402Client | null> {
-    if (this.client) return this.client;
-
-    const creds = await getCredentials();
-    const privateKey = creds?.privateKey || this.ctx.env.FLOCK_WALLET_PRIVATE_KEY;
-
-    if (!privateKey) {
-      await this.ctx.send('No wallet configured for x402. Run `/flock-setup` first.');
-      return null;
+  async showWallet(): Promise<void> {
+    const info = await this.getWalletInfo();
+    if (!info) {
+      // First time - generate wallet
+      await this.ensureReady();
+      return;
     }
 
-    this.client = new X402Client({ privateKey });
-    return this.client;
-  }
-
-  /**
-   * Send a chat message using x402
-   */
-  async chat(message: string): Promise<string | null> {
-    const client = await this.getClient();
-    if (!client) return null;
-
-    const creds = await getCredentials();
-    const model = creds?.model || 'deepseek-v3.2';
-
-    try {
-      const response = await client.chat({
-        model,
-        messages: [{ role: 'user', content: message }],
-      });
-
-      return response.choices[0]?.message?.content || null;
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Unknown error';
-      await this.ctx.send(`Chat error: ${msg}`);
-      return null;
-    }
+    await this.ctx.send(
+      `💳 Wallet\n\n` +
+        `Address: ${info.address}\n` +
+        `Balance: $${info.balance} USDC\n` +
+        `Total Spent: $${info.totalSpent}`
+    );
   }
 }
 

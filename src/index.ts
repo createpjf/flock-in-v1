@@ -73,9 +73,9 @@ export {
   type CredentialsOptions,
 } from './credentials.js';
 
-// x402 Payment client
+// x402 Payment client (legacy)
 export {
-  X402Client,
+  X402Client as X402ClientLegacy,
   createX402Fetch,
   hasX402Dependencies,
   estimateCost,
@@ -85,6 +85,35 @@ export {
   type ChatCompletionRequest,
   type ChatCompletionResponse,
 } from './x402.js';
+
+// x402 Payment client (new)
+export {
+  X402Client,
+  createX402Client,
+  type X402ClientConfig,
+  type PaymentProof,
+  type ChatRequest,
+  type ChatResponse,
+} from './x402-client.js';
+
+// USDC Balance checking
+export {
+  checkUSDCBalance,
+  waitForUSDCFunding,
+  USDC_CONTRACTS,
+  type USDCBalanceResult,
+} from './usdc-balance.js';
+
+// Payment tracking
+export {
+  recordPayment,
+  getPaymentHistory,
+  getTotalSpent,
+  getPaymentSummary,
+  getPaymentHistoryPath,
+  type PaymentRecord,
+  type PaymentSummary,
+} from './payment-tracker.js';
 
 /**
  * Available FLock models
