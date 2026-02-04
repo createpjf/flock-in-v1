@@ -1,0 +1,64 @@
+{
+  "name": "flock-in",
+  "version": "1.0.0",
+  "description": "OpenClaw skill for autonomous FLock API Platform setup with x402 payment support",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "bin": {
+    "flock-in": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "node --test dist/**/*.test.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "flock",
+    "openclaw",
+    "ai",
+    "x402",
+    "payments",
+    "ethereum",
+    "base"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "ethers": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "@x402/fetch": "^0.1.0",
+    "@x402/evm": "^0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@x402/fetch": {
+      "optional": true
+    },
+    "@x402/evm": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "skill"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/createpjf/flock-in-v1"
+  }
+}

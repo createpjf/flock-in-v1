@@ -1,0 +1,264 @@
+{
+  "$schema": "https://openclaw.ai/schemas/skill-v1.json",
+  "name": "flock-in",
+  "version": "1.0.0",
+  "description": "Autonomous FLock API Platform setup with x402 payment support",
+  "author": "createpjf",
+  "license": "MIT",
+  "repository": "https://github.com/createpjf/flock-in-v1",
+  "keywords": ["flock", "ai", "x402", "payments", "inference"],
+
+  "requirements": {
+    "node": ">=18.0.0",
+    "funding": {
+      "minimum": "0.50",
+      "currency": "USD",
+      "networks": ["ethereum", "base"]
+    }
+  },
+
+  "capabilities": {
+    "wallet": {
+      "generate": true,
+      "import": true,
+      "balance": true
+    },
+    "credentials": {
+      "store": true,
+      "retrieve": true,
+      "delete": true
+    },
+    "payments": {
+      "x402": true,
+      "apiKey": true
+    },
+    "models": {
+      "switch": true,
+      "list": true
+    }
+  },
+
+  "commands": {
+    "/flock-setup": {
+      "description": "Full setup wizard for FLock API access",
+      "triggers": ["setup flock", "configure flock", "flock setup"],
+      "steps": [
+        "check_existing_config",
+        "install_plugin",
+        "generate_wallet",
+        "wait_for_funding",
+        "create_api_key",
+        "save_credentials",
+        "verify_setup"
+      ]
+    },
+    "/flock": {
+      "description": "Switch between FLock models",
+      "triggers": ["switch to", "use the", "change model"],
+      "arguments": {
+        "model": {
+          "type": "string",
+          "enum": [
+            "deepseek-v3.2",
+            "qwen3-30b-coding",
+            "qwen3-30b-instruct",
+            "qwen3-235b-instruct",
+            "qwen3-235b-thinking",
+            "qwen3-235b-finance",
+            "kimi-k2-thinking",
+            "minimax-m2.1"
+          ],
+          "description": "Model ID to switch to"
+        }
+      }
+    },
+    "/flock-balance": {
+      "description": "Check wallet balance across networks",
+      "triggers": ["check flock balance", "flock balance", "wallet balance"]
+    },
+    "/flock-x402": {
+      "description": "Check x402 payment status and configuration",
+      "triggers": ["x402 status", "payment status"]
+    }
+  },
+
+  "models": {
+    "deepseek-v3.2": {
+      "name": "DeepSeek V3.2",
+      "description": "General purpose, cost-effective",
+      "pricing": {
+        "input": 0.28,
+        "output": 0.42,
+        "unit": "per_million_tokens"
+      },
+      "context_length": 64000
+    },
+    "qwen3-30b-coding": {
+      "name": "Qwen3 30B Coding",
+      "description": "Optimized for code generation",
+      "pricing": {
+        "input": 0.20,
+        "output": 0.80,
+        "unit": "per_million_tokens"
+      },
+      "context_length": 32000
+    },
+    "qwen3-30b-instruct": {
+      "name": "Qwen3 30B Instruct",
+      "description": "Instruction following",
+      "pricing": {
+        "input": 0.20,
+        "output": 0.80,
+        "unit": "per_million_tokens"
+      },
+      "context_length": 32000
+    },
+    "qwen3-235b-instruct": {
+      "name": "Qwen3 235B Instruct",
+      "description": "Complex reasoning tasks",
+      "pricing": {
+        "input": 0.70,
+        "output": 2.80,
+        "unit": "per_million_tokens"
+      },
+      "context_length": 32000
+    },
+    "qwen3-235b-thinking": {
+      "name": "Qwen3 235B Thinking",
+      "description": "Deep analysis with extended thinking",
+      "pricing": {
+        "input": 0.23,
+        "output": 2.30,
+        "unit": "per_million_tokens"
+      },
+      "context_length": 32000
+    },
+    "qwen3-235b-finance": {
+      "name": "Qwen3 235B Finance",
+      "description": "Financial analysis and reasoning",
+      "pricing": {
+        "input": 0.23,
+        "output": 2.30,
+        "unit": "per_million_tokens"
+      },
+      "context_length": 32000
+    },
+    "kimi-k2-thinking": {
+      "name": "Kimi K2 Thinking",
+      "description": "Extended thinking capabilities",
+      "pricing": {
+        "input": 0.60,
+        "output": 2.50,
+        "unit": "per_million_tokens"
+      },
+      "context_length": 128000
+    },
+    "minimax-m2.1": {
+      "name": "MiniMax M2.1",
+      "description": "Balanced performance and cost",
+      "pricing": {
+        "input": 0.30,
+        "output": 1.20,
+        "unit": "per_million_tokens"
+      },
+      "context_length": 64000
+    }
+  },
+
+  "credentials": {
+    "storage": {
+      "primary": "~/.openclaw/flock-credentials.json",
+      "fallback": "./flock-credentials.json"
+    },
+    "fields": {
+      "apiKey": {
+        "type": "string",
+        "required": false,
+        "description": "FLock API key (for traditional auth)"
+      },
+      "wallet": {
+        "type": "string",
+        "required": true,
+        "description": "Ethereum wallet address"
+      },
+      "privateKey": {
+        "type": "string",
+        "required": true,
+        "sensitive": true,
+        "description": "Wallet private key"
+      },
+      "model": {
+        "type": "string",
+        "required": false,
+        "default": "deepseek-v3.2",
+        "description": "Current model selection"
+      }
+    }
+  },
+
+  "x402": {
+    "supported": true,
+    "networks": ["base"],
+    "token": "USDC",
+    "facilitator": "https://x402.coinbase.com",
+    "maxPaymentUsd": 0.10,
+    "description": "x402 enables pay-per-request API access without traditional API keys"
+  },
+
+  "scripts": {
+    "generate-wallet": {
+      "command": "node scripts/generate-wallet.js",
+      "description": "Generate new Ethereum wallet"
+    },
+    "check-balance": {
+      "command": "node scripts/check-balance.js",
+      "arguments": ["address"],
+      "description": "Check wallet balance on Ethereum and Base"
+    },
+    "credentials": {
+      "command": "node scripts/credentials.js",
+      "subcommands": {
+        "save": {
+          "arguments": ["api_key", "wallet?", "private_key?"],
+          "description": "Save credentials"
+        },
+        "get": {
+          "description": "Get saved credentials"
+        },
+        "path": {
+          "description": "Show credentials file path"
+        },
+        "delete": {
+          "description": "Delete saved credentials"
+        }
+      }
+    }
+  },
+
+  "errors": {
+    "insufficient_funds": {
+      "message": "Wallet needs funding",
+      "solution": "Send ETH/USDC to wallet address"
+    },
+    "invalid_api_key": {
+      "message": "API key not created or expired",
+      "solution": "Generate new key at platform.flock.io"
+    },
+    "402_payment_required": {
+      "message": "x402 payment failed",
+      "solution": "Check USDC balance on Base network"
+    },
+    "rate_limit_exceeded": {
+      "message": "Too many requests",
+      "solution": "Wait 60 seconds or upgrade plan"
+    },
+    "model_not_found": {
+      "message": "Invalid model ID",
+      "solution": "Use /flock to see available models"
+    },
+    "network_error": {
+      "message": "RPC connection failed",
+      "solution": "Retry with exponential backoff"
+    }
+  }
+}

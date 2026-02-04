@@ -231,18 +231,25 @@ Default locations (in priority order):
 
 ```
 flock-in-v1/
+├── package.json        # NPM package config
+├── tsconfig.json       # TypeScript config
 ├── skill/              # OpenClaw skill definition
-│   └── skill.json      # Skill manifest
+│   └── skill.json      # Skill manifest with commands & models
 ├── agent-service/      # Agent integration layer
-├── scripts/            # Standalone utilities
+│   └── index.ts        # FlockAgentService for OpenClaw runtime
+├── scripts/            # Standalone CLI utilities (JavaScript)
+│   ├── package.json
 │   ├── generate-wallet.js
 │   ├── check-balance.js
 │   └── credentials.js
-└── src/                # Core implementation
-    ├── wallet.ts
-    ├── balance.ts
-    ├── credentials.ts
-    └── x402.ts         # x402 payment client
+├── src/                # Core TypeScript implementation
+│   ├── index.ts        # Main exports
+│   ├── cli.ts          # CLI entry point
+│   ├── wallet.ts       # Wallet generation & validation
+│   ├── balance.ts      # Multi-chain balance checking
+│   ├── credentials.ts  # Credential storage
+│   └── x402.ts         # x402 payment client
+└── dist/               # Compiled output (after npm run build)
 ```
 
 ## Environment Variables
