@@ -118,11 +118,11 @@ export class FlockAgentService {
     balance: string
   ): Promise<void> {
     await this.ctx.send(
-      `💳 FLock 支付钱包\n\n` +
-        `地址: ${address}\n` +
-        `余额: $${balance} USDC\n` +
-        `网络: Base\n\n` +
-        `请发送 USDC 后重试`
+      `💳 FLock Payment Wallet\n\n` +
+        `Address: ${address}\n` +
+        `Balance: $${balance} USDC\n` +
+        `Network: Base\n\n` +
+        `Please send USDC and try again`
     );
   }
 

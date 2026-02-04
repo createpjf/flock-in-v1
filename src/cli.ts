@@ -51,11 +51,11 @@ No API key needed - just fund your wallet with USDC on Base.
  * Show funding prompt (only output users see when setup needed)
  */
 function showFundingPrompt(address: string, balance: string): void {
-  console.log(`💳 FLock 支付钱包\n`);
-  console.log(`地址: ${address}`);
-  console.log(`余额: $${balance} USDC`);
-  console.log(`网络: Base\n`);
-  console.log(`请发送 USDC 后重试`);
+  console.log(`💳 FLock Payment Wallet\n`);
+  console.log(`Address: ${address}`);
+  console.log(`Balance: $${balance} USDC`);
+  console.log(`Network: Base\n`);
+  console.log(`Please send USDC and try again`);
 }
 
 async function main() {
