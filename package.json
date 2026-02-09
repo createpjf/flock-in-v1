@@ -1,7 +1,7 @@
 {
-  "name": "flock-in",
+  "name": "flock-model-switcher",
   "version": "1.0.0",
-  "description": "OpenClaw skill for autonomous FLock API Platform setup with x402 payment support",
+  "description": "FLock Model Switcher: login, list models, and switch between FLock API Platform models",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
@@ -17,39 +17,20 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "node --test dist/**/*.test.js",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
     "flock",
-    "openclaw",
     "ai",
-    "x402",
-    "payments",
-    "ethereum",
-    "base"
+    "models",
+    "inference",
+    "model-switcher"
   ],
   "author": "",
   "license": "MIT",
-  "dependencies": {
-    "ethers": "^6.0.0",
-    "viem": "^2.21.0"
-  },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0"
-  },
-  "peerDependencies": {
-    "@x402/fetch": "^0.1.0",
-    "@x402/evm": "^0.1.0"
-  },
-  "peerDependenciesMeta": {
-    "@x402/fetch": {
-      "optional": true
-    },
-    "@x402/evm": {
-      "optional": true
-    }
   },
   "engines": {
     "node": ">=18.0.0"

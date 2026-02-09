@@ -1,64 +1,11 @@
 /**
- * FLock IN - OpenClaw skill for autonomous FLock API Platform setup
+ * FLock Model Switcher
+ *
+ * A skill for listing and switching between FLock API Platform models.
  *
  * @packageDocumentation
- * @module flock-in
- *
- * @example
- * ```typescript
- * import {
- *   generateWallet,
- *   checkBalance,
- *   saveCredentials,
- *   X402Client,
- * } from 'flock-in';
- *
- * // Generate wallet for FLock
- * const wallet = await generateWallet();
- * console.log(`Fund this address: ${wallet.address}`);
- *
- * // Wait for funding
- * const balance = await checkBalance(wallet.address);
- * if (balance.hasFunds) {
- *   // Save credentials
- *   await saveCredentials({
- *     wallet: wallet.address,
- *     privateKey: wallet.privateKey,
- *   });
- *
- *   // Use x402 for payments
- *   const client = new X402Client({
- *     privateKey: wallet.privateKey,
- *   });
- *
- *   const response = await client.chat({
- *     model: 'deepseek-v3.2',
- *     messages: [{ role: 'user', content: 'Hello!' }],
- *   });
- * }
- * ```
+ * @module flock-model-switcher
  */
-
-// Wallet utilities
-export {
-  generateWallet,
-  importWallet,
-  isValidAddress,
-  isValidPrivateKey,
-  type WalletInfo,
-  type GenerateWalletOptions,
-} from './wallet.js';
-
-// Balance checking
-export {
-  checkBalance,
-  waitForFunding,
-  CHAINS,
-  type ChainName,
-  type ChainBalance,
-  type BalanceResult,
-  type CheckBalanceOptions,
-} from './balance.js';
 
 // Credential management
 export {
@@ -72,48 +19,6 @@ export {
   type FlockCredentials,
   type CredentialsOptions,
 } from './credentials.js';
-
-// x402 Payment client (legacy)
-export {
-  X402Client as X402ClientLegacy,
-  createX402Fetch,
-  hasX402Dependencies,
-  estimateCost,
-  type X402Config,
-  type PaymentRequirement,
-  type PaymentResponse,
-  type ChatCompletionRequest,
-  type ChatCompletionResponse,
-} from './x402.js';
-
-// x402 Payment client (new)
-export {
-  X402Client,
-  createX402Client,
-  type X402ClientConfig,
-  type PaymentProof,
-  type ChatRequest,
-  type ChatResponse,
-} from './x402-client.js';
-
-// USDC Balance checking
-export {
-  checkUSDCBalance,
-  waitForUSDCFunding,
-  USDC_CONTRACTS,
-  type USDCBalanceResult,
-} from './usdc-balance.js';
-
-// Payment tracking
-export {
-  recordPayment,
-  getPaymentHistory,
-  getTotalSpent,
-  getPaymentSummary,
-  getPaymentHistoryPath,
-  type PaymentRecord,
-  type PaymentSummary,
-} from './payment-tracker.js';
 
 /**
  * Available FLock models

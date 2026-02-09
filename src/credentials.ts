@@ -1,6 +1,7 @@
 /**
- * Credential management for FLock
- * @module flock-in/credentials
+ * Credential management for FLock Model Switcher
+ * Stores API key and current model selection.
+ * @module flock-model-switcher/credentials
  */
 
 import * as fs from 'node:fs';
@@ -13,10 +14,6 @@ import * as os from 'node:os';
 export interface FlockCredentials {
   /** FLock API key */
   apiKey?: string;
-  /** Wallet address */
-  wallet?: string;
-  /** Private key for wallet */
-  privateKey?: string;
   /** Current model selection */
   model?: string;
   /** Creation timestamp */
@@ -42,43 +39,22 @@ const CREDENTIALS_FILE = 'flock-credentials.json';
 
 /**
  * Get the default credentials storage path
- *
- * Priority:
- * 1. OpenClaw directory (~/.openclaw/)
- * 2. Current working directory
- *
- * @returns Path to credentials file
  */
 export function getCredentialsPath(options: CredentialsOptions = {}): string {
   if (options.storagePath) {
     return options.storagePath;
   }
 
-  // Check for OpenClaw directory
   const openclawDir = path.join(os.homedir(), '.openclaw');
   if (fs.existsSync(openclawDir)) {
     return path.join(openclawDir, CREDENTIALS_FILE);
   }
 
-  // Fallback to current directory
   return path.join(process.cwd(), CREDENTIALS_FILE);
 }
 
 /**
  * Load saved credentials
- *
- * @example
- * ```typescript
- * import { getCredentials } from 'flock-in';
- *
- * const creds = await getCredentials();
- * if (creds?.apiKey) {
- *   console.log('API key found');
- * }
- * ```
- *
- * @param options - Storage options
- * @returns Credentials or null if not found
  */
 export async function getCredentials(
   options: CredentialsOptions = {}
@@ -99,21 +75,6 @@ export async function getCredentials(
 
 /**
  * Save credentials (merges with existing)
- *
- * @example
- * ```typescript
- * import { saveCredentials } from 'flock-in';
- *
- * await saveCredentials({
- *   apiKey: 'flock_...',
- *   wallet: '0x...',
- *   privateKey: '0x...',
- * });
- * ```
- *
- * @param credentials - Credentials to save
- * @param options - Storage options
- * @returns Path where credentials were saved
  */
 export async function saveCredentials(
   credentials: Partial<FlockCredentials>,
@@ -122,12 +83,10 @@ export async function saveCredentials(
   const credPath = getCredentialsPath(options);
   const dir = path.dirname(credPath);
 
-  // Create directory if needed
   if (options.createDir !== false && !fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
 
-  // Load existing credentials
   let existing: FlockCredentials = {};
   if (fs.existsSync(credPath)) {
     try {
@@ -137,7 +96,6 @@ export async function saveCredentials(
     }
   }
 
-  // Merge credentials
   const merged: FlockCredentials = {
     ...existing,
     ...credentials,
@@ -148,7 +106,6 @@ export async function saveCredentials(
     merged.createdAt = merged.updatedAt;
   }
 
-  // Write with restricted permissions (owner read/write only)
   fs.writeFileSync(credPath, JSON.stringify(merged, null, 2), { mode: 0o600 });
 
   return credPath;
@@ -156,9 +113,6 @@ export async function saveCredentials(
 
 /**
  * Delete stored credentials
- *
- * @param options - Storage options
- * @returns True if deleted, false if didn't exist
  */
 export async function deleteCredentials(
   options: CredentialsOptions = {}
@@ -175,29 +129,16 @@ export async function deleteCredentials(
 
 /**
  * Check if credentials are configured
- *
- * @param options - Storage options
- * @returns True if API key or private key is set
  */
 export async function hasCredentials(
   options: CredentialsOptions = {}
 ): Promise<boolean> {
   const creds = await getCredentials(options);
-  return !!(creds?.apiKey || creds?.privateKey);
+  return !!creds?.apiKey;
 }
 
 /**
  * Update the current model selection
- *
- * @example
- * ```typescript
- * import { switchModel } from 'flock-in';
- *
- * await switchModel('deepseek-v3.2');
- * ```
- *
- * @param model - Model ID to switch to
- * @param options - Storage options
  */
 export async function switchModel(
   model: string,
@@ -208,9 +149,6 @@ export async function switchModel(
 
 /**
  * Get current model selection
- *
- * @param options - Storage options
- * @returns Current model ID or default
  */
 export async function getCurrentModel(
   options: CredentialsOptions = {}

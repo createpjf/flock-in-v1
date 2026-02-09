@@ -1,171 +1,34 @@
-# FLock IN V1
+# FLock Model Switcher
 
-An OpenClaw skill for autonomous FLock API Platform setup. Enables AI agents to self-provision access to FLock's distributed AI inference network.
+A skill that teaches agents how to log in to the FLock API Platform, list available models, and switch between them.
+
+## What This Does
+
+- **Login**: Guides users to get a FLock API key from [platform.flock.io](https://platform.flock.io)
+- **List Models**: Shows all available FLock inference models with pricing
+- **Switch Models**: Changes the active model for FLock API requests
 
 ## Quick Start
 
-### Automatic (via OpenClaw)
+### 1. Get Your API Key
+
+1. Go to [platform.flock.io](https://platform.flock.io)
+2. Log in (wallet connect or email)
+3. Navigate to "API Keys"
+4. Create and copy your key
+
+### 2. Set API Key
 
 ```bash
-npx clawhub@latest install flock-in-v1
+export FLOCK_API_KEY="your-api-key"
 ```
 
-### Manual Setup
-
-```bash
-git clone https://github.com/createpjf/flock-in-v1
-cd flock-in-v1
-npm install
-```
-
-## Prerequisites
-
-| Requirement | Details |
-|------------|---------|
-| Node.js | v18+ |
-| OpenClaw CLI | Latest version |
-| Funding | ~$0.50 ETH on Ethereum or Base |
-
-## Cost Breakdown
-
-| Operation | Cost | Network |
-|-----------|------|---------|
-| Wallet generation | Free | Local |
-| Platform registration | Free | — |
-| API calls (x402) | $0.001–$0.01/request | Base (USDC) |
-| Model inference | $0.20–$2.80/1M tokens | Via API key |
-
-**Total startup cost: ~$0.50**
-
-## x402 Payment Support
-
-FLock API supports the [x402 payment protocol](https://www.x402.org/) for pay-per-request API access without traditional API keys.
-
-### How x402 Works
+### 3. Use
 
 ```
-┌─────────┐     1. Request      ┌─────────────┐
-│  Agent  │ ──────────────────→ │ FLock API   │
-│         │ ←────────────────── │             │
-└─────────┘   2. 402 Payment    └─────────────┘
-     │           Required             │
-     │                                │
-     │    3. Request + Payment        │
-     │        Signature               │
-     └───────────────────────────────→│
-                                      │
-              4. 200 OK + Response    │
-     ←────────────────────────────────┘
+/flock                    # Show model list
+/flock deepseek-v3.2      # Switch to a model
 ```
-
-### x402 Client Setup
-
-```bash
-npm install @x402/fetch @x402/evm
-```
-
-```typescript
-import { wrapFetch } from '@x402/fetch';
-import { createEVMClient } from '@x402/evm';
-
-// Create payment-enabled fetch
-const x402Fetch = wrapFetch(fetch, {
-  client: createEVMClient({
-    privateKey: process.env.WALLET_PRIVATE_KEY,
-    network: 'base', // USDC payments on Base
-  }),
-});
-
-// Use like normal fetch - payments handled automatically
-const response = await x402Fetch('https://api.flock.io/v1/chat/completions', {
-  method: 'POST',
-  body: JSON.stringify({
-    model: 'deepseek-v3.2',
-    messages: [{ role: 'user', content: 'Hello' }],
-  }),
-});
-```
-
-### x402 vs API Key
-
-| Feature | x402 | API Key |
-|---------|------|---------|
-| Setup | Wallet only | Dashboard login |
-| Payment | Per-request | Prepaid balance |
-| Minimum | $0.001 | ~$5 deposit |
-| Agent-friendly | Yes | Requires human |
-
-## Complete Setup Flow
-
-### Option A: x402 (Fully Autonomous)
-
-```
-1. Agent generates wallet          → scripts/generate-wallet.js
-2. User funds wallet (~$0.50 USDC) → Base network
-3. Agent makes x402 requests       → Auto-payment per request
-```
-
-### Option B: API Key (Traditional)
-
-```
-1. Agent generates wallet          → scripts/generate-wallet.js
-2. User funds wallet (~$0.50 ETH)  → Ethereum or Base
-3. Agent checks balance            → scripts/check-balance.js
-4. User logs into platform.flock.io with wallet
-5. User creates API key            → Dashboard
-6. Agent stores credentials        → scripts/credentials.js
-7. Agent configures OpenClaw       → Environment or config
-```
-
-## Programmatic Usage
-
-### Core Functions
-
-```typescript
-import {
-  generateWallet,
-  checkBalance,
-  saveCredentials,
-  getCredentials,
-  switchModel,
-} from 'flock-in';
-
-// Generate new wallet for FLock
-const wallet = await generateWallet();
-// Returns: { address: '0x...', privateKey: '0x...' }
-
-// Check funding status
-const balance = await checkBalance(wallet.address);
-// Returns: { ethereum: '0.5', base: '0.0' }
-
-// Save credentials after API key creation
-await saveCredentials({
-  apiKey: 'flock_...',
-  wallet: wallet.address,
-  privateKey: wallet.privateKey,
-});
-
-// Switch active model
-await switchModel('deepseek-v3.2');
-```
-
-### Natural Language Commands
-
-```
-"setup flock"           → Full setup wizard
-"switch to deepseek"    → Change model to DeepSeek V3.2
-"use the coding model"  → Switch to Qwen3 30B Coding
-"check flock balance"   → Show wallet balance
-```
-
-### Slash Commands
-
-| Command | Description |
-|---------|-------------|
-| `/flock-setup` | Full setup wizard |
-| `/flock` | Model switcher |
-| `/flock-balance` | Check wallet balance |
-| `/flock-x402` | x402 payment status |
 
 ## Available Models
 
@@ -180,100 +43,32 @@ await switchModel('deepseek-v3.2');
 | Kimi K2 Thinking | `kimi-k2-thinking` | $0.60 / $2.50 | Extended thinking |
 | MiniMax M2.1 | `minimax-m2.1` | $0.30 / $1.20 | Balanced |
 
-## Scripts Reference
-
-```bash
-# Generate new wallet
-node scripts/generate-wallet.js
-# Output: { address, privateKey }
-
-# Check balance on multiple networks
-node scripts/check-balance.js <address>
-# Output: { ethereum, base, optimism }
-
-# Credential management
-node scripts/credentials.js save <api_key> [wallet] [pk]
-node scripts/credentials.js get
-node scripts/credentials.js path
-node scripts/credentials.js delete
-```
-
-## Credentials Storage
-
-Default locations (in priority order):
-
-1. `~/.openclaw/flock-credentials.json`
-2. `./flock-credentials.json`
-
-```json
-{
-  "apiKey": "flock_...",
-  "wallet": "0x...",
-  "privateKey": "0x...",
-  "model": "deepseek-v3.2"
-}
-```
-
-> **Security**: Credentials stored as plaintext. For production, use encrypted storage or environment variables.
-
-## Troubleshooting
-
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `insufficient_funds` | Wallet needs funding | Send ETH/USDC to wallet address |
-| `invalid_api_key` | Key not created or expired | Generate new key at platform.flock.io |
-| `402 Payment Required` | x402 payment failed | Check USDC balance on Base |
-| `rate_limit_exceeded` | Too many requests | Wait 60s or upgrade plan |
-| `model_not_found` | Invalid model ID | Check available models table |
-| `network_error` | RPC connection failed | Retry with exponential backoff |
-
-## Architecture
+## Natural Language Triggers
 
 ```
-flock-in-v1/
-├── package.json        # NPM package config
-├── tsconfig.json       # TypeScript config
-├── skill/              # OpenClaw skill definition
-│   └── skill.json      # Skill manifest with commands & models
-├── agent-service/      # Agent integration layer
-│   └── index.ts        # FlockAgentService for OpenClaw runtime
-├── scripts/            # Standalone CLI utilities (JavaScript)
-│   ├── package.json
-│   ├── generate-wallet.js
-│   ├── check-balance.js
-│   └── credentials.js
-├── src/                # Core TypeScript implementation
-│   ├── index.ts        # Main exports
-│   ├── cli.ts          # CLI entry point
-│   ├── wallet.ts       # Wallet generation & validation
-│   ├── balance.ts      # Multi-chain balance checking
-│   ├── credentials.ts  # Credential storage
-│   └── x402.ts         # x402 payment client
-└── dist/               # Compiled output (after npm run build)
+"list flock models"       → Show model list
+"switch to deepseek"      → Change model to DeepSeek V3.2
+"use the coding model"    → Switch to Qwen3 30B Coding
+"flock login"             → Guide API key setup
 ```
+
+## Slash Commands
+
+| Command | Description |
+|---------|-------------|
+| `/flock` | List models or switch model |
 
 ## Environment Variables
 
 ```bash
-# API Key auth (traditional)
-FLOCK_API_KEY=flock_...
-
-# x402 auth (autonomous)
-FLOCK_WALLET_PRIVATE_KEY=0x...
-
-# Optional
-FLOCK_DEFAULT_MODEL=deepseek-v3.2
-FLOCK_NETWORK=base
+FLOCK_API_KEY=sk-...              # API key (required)
+FLOCK_DEFAULT_MODEL=deepseek-v3.2 # Default model (optional)
 ```
 
 ## Related Resources
 
-- [x402 Protocol](https://www.x402.org/) — Payment protocol specification
-- [x402 GitHub](https://github.com/coinbase/x402) — Reference implementation
-- [FLock API Platform](https://platform.flock.io) — Dashboard
+- [FLock API Platform](https://platform.flock.io) — Dashboard & API keys
 - [FLock Documentation](https://docs.flock.io/flock-products/api-platform/getting-started)
-- [Farcaster Agent](https://github.com/rishavmukherji/farcaster-agent) — Pattern inspiration
-- [OpenClaw](https://github.com/openclawd/openclaw) — Skill framework
 
 ## License
 
