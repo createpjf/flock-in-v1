@@ -1,211 +1,132 @@
 /**
- * Agent Service - Integration layer for OpenClaw
+ * Agent Service - FLock Model Switcher
  *
- * This module provides the agent-level integration between
- * the flock-in skill and OpenClaw's agent runtime.
+ * Provides model listing and switching capabilities for agents.
  *
- * Design principle: Minimize user interaction.
- * Only show wallet address when funding is needed.
- * All payment processing is silent.
- *
- * @module flock-in/agent-service
+ * @module flock-model-switcher/agent-service
  */
 
 import {
-  generateWallet,
   getCredentials,
   saveCredentials,
   switchModel,
+  getCurrentModel,
   MODELS,
   type FlockCredentials,
   type ModelId,
 } from '../src/index.js';
 
-import { X402Client } from '../src/x402-client.js';
-import { checkUSDCBalance, type USDCBalanceResult } from '../src/usdc-balance.js';
-import { recordPayment, getTotalSpent } from '../src/payment-tracker.js';
-
 /**
- * Agent context provided by OpenClaw runtime
+ * Agent context provided by runtime
  */
 export interface AgentContext {
   /** Send message to user */
   send: (message: string) => Promise<void>;
   /** Prompt user for input */
   prompt: (question: string) => Promise<string>;
-  /** Execute shell command */
-  exec: (command: string) => Promise<{ stdout: string; stderr: string }>;
   /** Environment variables */
   env: Record<string, string | undefined>;
 }
 
 /**
- * Setup result
- */
-export interface SetupResult {
-  success: boolean;
-  wallet?: string;
-  balance?: string;
-  needsFunding?: boolean;
-  error?: string;
-}
-
-/**
- * Chat result
- */
-export interface ChatResult {
-  success: boolean;
-  content?: string;
-  error?: string;
-}
-
-/**
- * FLock Agent Service
+ * FLock Model Switcher Agent Service
  *
- * Handles the full lifecycle of FLock API setup and usage within
- * the OpenClaw agent runtime.
- *
- * Key design: Agent-friendly, minimal user interaction.
- * - Automatic wallet generation
- * - Silent payment processing
- * - Only prompt when funding is needed
+ * Handles model listing and switching within the agent runtime.
  */
-export class FlockAgentService {
+export class FlockModelSwitcher {
   private ctx: AgentContext;
-  private x402Client: X402Client | null = null;
 
   constructor(ctx: AgentContext) {
     this.ctx = ctx;
   }
 
   /**
-   * Silent initialization - called automatically before any operation.
-   * Only shows output when user action is needed (funding).
-   *
-   * @returns true if ready to use, false if funding needed
+   * Check if FLOCK_API_KEY is configured.
+   * If not, guide user to get one.
    */
-  private async ensureReady(): Promise<boolean> {
-    const creds = await getCredentials();
-
-    // Already configured with funds
-    if (creds?.privateKey) {
-      const balance = await checkUSDCBalance(creds.wallet!);
-      if (balance.hasMinimum) {
-        return true; // Silent pass - user sees nothing
-      }
-      // Insufficient funds - show minimal prompt
-      await this.showFundingPrompt(creds.wallet!, balance.balance);
-      return false;
+  async ensureApiKey(): Promise<boolean> {
+    const apiKey = this.ctx.env.FLOCK_API_KEY;
+    if (apiKey) {
+      return true;
     }
 
-    // First time - generate wallet silently, then show funding prompt
-    const wallet = await generateWallet();
-    await saveCredentials({
-      wallet: wallet.address,
-      privateKey: wallet.privateKey,
-      model: 'deepseek-v3.2',
-    });
-    await this.showFundingPrompt(wallet.address, '0.00');
+    const creds = await getCredentials();
+    if (creds?.apiKey) {
+      return true;
+    }
+
+    await this.ctx.send(
+      `FLock API key not configured. Get one:\n\n` +
+      `1. Go to https://platform.flock.io\n` +
+      `2. Log in (wallet connect or email)\n` +
+      `3. Navigate to "API Keys" section\n` +
+      `4. Click "Create API Key"\n` +
+      `5. Copy the key (shown only once!)\n\n` +
+      `Paste your API key here:`
+    );
+
+    const key = await this.ctx.prompt('API key:');
+    if (key && key.trim()) {
+      await saveCredentials({ apiKey: key.trim() });
+      await this.ctx.send('FLock API key configured.');
+      return true;
+    }
+
     return false;
   }
 
   /**
-   * Show minimal funding prompt.
-   * This is the ONLY setup-related output users see.
+   * List all available models
    */
-  private async showFundingPrompt(
-    address: string,
-    balance: string
-  ): Promise<void> {
-    await this.ctx.send(
-      `💳 FLock 支付钱包\n\n` +
-        `地址: ${address}\n` +
-        `余额: $${balance} USDC\n` +
-        `网络: Base\n\n` +
-        `请发送 USDC 后重试`
-    );
+  async listModels(): Promise<void> {
+    const currentModel = await getCurrentModel();
+
+    let message = 'Which FLock model?\n\n';
+
+    message += 'Reasoning:\n';
+    message += `  1. Qwen3 235B Thinking         — $0.23/$2.30  (flock/qwen3-235b-a22b-thinking-2507)\n`;
+    message += `  2. Qwen3 235B Finance          — $0.23/$2.30  (flock/qwen3-235b-a22b-thinking-qwfin)\n`;
+    message += `  3. Kimi K2 Thinking            — $0.60/$2.50  (flock/kimi-k2-thinking)\n\n`;
+
+    message += 'Instruct:\n';
+    message += `  4. Qwen3 30B Instruct          — $0.20/$0.80  (flock/qwen3-30b-a3b-instruct-2507)\n`;
+    message += `  5. Qwen3 235B Instruct         — $0.70/$2.80  (flock/qwen3-235b-a22b-instruct-2507)\n`;
+    message += `  6. Qwen3 30B Coding            — $0.20/$0.80  (flock/qwen3-30b-a3b-instruct-coding)\n\n`;
+
+    message += 'Other:\n';
+    message += `  7. DeepSeek V3.2               — $0.28/$0.42  (flock/deepseek-v3.2)\n`;
+    message += `  8. MiniMax M2.1                — $0.30/$1.20  (flock/minimax-m2.1)\n\n`;
+
+    message += `Current: ${currentModel}\n`;
+    message += 'Reply with number or model name.';
+
+    await this.ctx.send(message);
   }
 
   /**
-   * Chat with automatic silent payment.
-   * Users only see the response content, not payment details.
-   *
-   * @param message - User message
-   * @returns Response content or null if funding needed
-   */
-  async chat(message: string): Promise<string | null> {
-    // Silent check/initialization
-    if (!(await this.ensureReady())) {
-      return null; // Funding prompt already shown
-    }
-
-    const creds = await getCredentials();
-
-    // Initialize client if needed
-    if (!this.x402Client) {
-      this.x402Client = new X402Client({
-        privateKey: creds!.privateKey!,
-      });
-    }
-
-    try {
-      const model = creds!.model || 'deepseek-v3.2';
-
-      // Make request - payment handled internally
-      const result = await this.x402Client.chat({
-        model,
-        messages: [{ role: 'user', content: message }],
-      });
-
-      // Silent payment recording (no output)
-      if (result.payment) {
-        await recordPayment({
-          transactionHash: result.payment.transactionHash,
-          timestamp: result.payment.timestamp,
-          amount: result.payment.amount,
-          model,
-          network: result.payment.network,
-          tokens: {
-            input: result.usage?.prompt_tokens || 0,
-            output: result.usage?.completion_tokens || 0,
-          },
-        });
-      }
-
-      // Return only content - no payment info shown
-      return result.choices[0]?.message?.content || null;
-    } catch (error) {
-      // Check if it's a balance issue
-      if (
-        error instanceof Error &&
-        (error.message.includes('insufficient') ||
-          error.message.includes('balance'))
-      ) {
-        const balance = await checkUSDCBalance(creds!.wallet!);
-        await this.showFundingPrompt(creds!.wallet!, balance.balance);
-        return null;
-      }
-      // For other errors, show brief message
-      const msg = error instanceof Error ? error.message : 'Unknown error';
-      await this.ctx.send(`Error: ${msg}`);
-      return null;
-    }
-  }
-
-  /**
-   * Switch to a different model (silent unless showing picker)
+   * Switch to a different model
    */
   async switchToModel(modelId?: string): Promise<void> {
     if (!modelId) {
-      // Show model picker only when no model specified
-      let message = 'Available models:\n\n';
-      for (const [id, model] of Object.entries(MODELS)) {
-        message += `• **${id}** - ${model.description}\n`;
-      }
-      await this.ctx.send(message);
-
+      await this.listModels();
       const selected = await this.ctx.prompt('Enter model ID:');
       modelId = selected.trim();
+    }
+
+    // Handle numeric selection
+    const numberMap: Record<string, string> = {
+      '1': 'qwen3-235b-thinking',
+      '2': 'qwen3-235b-finance',
+      '3': 'kimi-k2-thinking',
+      '4': 'qwen3-30b-instruct',
+      '5': 'qwen3-235b-instruct',
+      '6': 'qwen3-30b-coding',
+      '7': 'deepseek-v3.2',
+      '8': 'minimax-m2.1',
+    };
+
+    if (modelId in numberMap) {
+      modelId = numberMap[modelId];
     }
 
     if (!(modelId in MODELS)) {
@@ -214,57 +135,28 @@ export class FlockAgentService {
     }
 
     await switchModel(modelId);
-    // Silent confirmation - don't spam user
+    await this.ctx.send(`Switched to flock/${modelId}.`);
   }
 
   /**
-   * Get wallet info (only when user explicitly requests)
+   * Get current model
    */
-  async getWalletInfo(): Promise<{
-    address: string;
-    balance: string;
-    totalSpent: string;
-  } | null> {
-    const creds = await getCredentials();
-    if (!creds?.wallet) {
-      return null;
+  async showCurrentModel(): Promise<void> {
+    const model = await getCurrentModel();
+    const info = MODELS[model as ModelId];
+    if (info) {
+      await this.ctx.send(`Current model: ${model} (${info.description})`);
+    } else {
+      await this.ctx.send(`Current model: ${model}`);
     }
-
-    const balance = await checkUSDCBalance(creds.wallet);
-    const totalSpent = await getTotalSpent();
-
-    return {
-      address: creds.wallet,
-      balance: balance.balance,
-      totalSpent,
-    };
-  }
-
-  /**
-   * Show wallet details (only when user explicitly asks)
-   */
-  async showWallet(): Promise<void> {
-    const info = await this.getWalletInfo();
-    if (!info) {
-      // First time - generate wallet
-      await this.ensureReady();
-      return;
-    }
-
-    await this.ctx.send(
-      `💳 Wallet\n\n` +
-        `Address: ${info.address}\n` +
-        `Balance: $${info.balance} USDC\n` +
-        `Total Spent: $${info.totalSpent}`
-    );
   }
 }
 
 /**
- * Create agent service instance
+ * Create model switcher instance
  */
-export function createAgentService(ctx: AgentContext): FlockAgentService {
-  return new FlockAgentService(ctx);
+export function createModelSwitcher(ctx: AgentContext): FlockModelSwitcher {
+  return new FlockModelSwitcher(ctx);
 }
 
-export default FlockAgentService;
+export default FlockModelSwitcher;

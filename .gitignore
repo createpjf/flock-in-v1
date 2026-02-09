@@ -3,6 +3,10 @@ node_modules/
 
 # Build output
 dist/
+agent-service/*.js
+agent-service/*.js.map
+agent-service/*.d.ts
+agent-service/*.d.ts.map
 
 # Credentials (never commit!)
 flock-credentials.json
